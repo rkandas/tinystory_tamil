@@ -7,6 +7,7 @@ import glob
 import json
 import os
 import random
+from time import sleep
 from typing import List
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -17,8 +18,14 @@ import torch.distributed as dist
 from tqdm import tqdm
 
 from tokenizer import Tokenizer
+from indicTrans.inference.engine import Model
+import ftfy.bad_codecs
+from datasets import Dataset, DatasetDict
+
+import csv
 
 DATA_CACHE_DIR = "data"
+indic2en_model = Model(expdir='./indicTrans/en-indic')
 
 def download_file(url: str, fname: str, chunk_size=1024):
     """Helper function to download a file from a given url"""
@@ -67,32 +74,61 @@ def download():
     print(f"Example story:\n{data[0]}")
 
 def pretokenize():
-    enc = Tokenizer()
-
     def process_shard(shard):
-        with open(shard, "r") as f:
-            data = json.load(f)
-        all_tokens = []
-        for example in tqdm(data):
-            text = example["story"]
-            text = text.strip() # get rid of leading/trailing whitespace
-            tokens = enc.encode(text, bos=True, eos=False)  # encode the text, use BOS
-            all_tokens.extend(tokens)
-        # convert to uint16 nparray
-        all_tokens = np.array(all_tokens, dtype=np.uint16)
-        # write to disk
-        tokenized_filename = shard.replace(".json", ".bin")
-        with open(tokenized_filename, "wb") as f:
-            f.write(all_tokens.tobytes())
-        print(f"Saved {tokenized_filename}")
+        total_stories = 0
+        print(f"Processing {shard}...")
+        with open(shard, "r", encoding='sloppy-windows-1252') as f:
+            fulltext = f.read()
+            stories = fulltext.split('<|endoftext|>')
+            stories = [l.strip() for l in stories]
+        current_csv_file = None
+        all_translations = []
+        for example in tqdm(stories[2300:]):
+            total_stories = total_stories + 1
+            #text = example["story"]
+            text = example.strip()  # get rid of leading/trailing whitespace
+            text = text.replace("\n\n", "\n")  # replace newlines with spaces
+            text = text.replace("\"", "“")
+            #text = text.replace("..", ".")
+            if text == "":
+                continue
 
-    # iterate the shards and tokenize all of them one by one
+            #tamil_text = ts.translate_text(text, to_language='ta', translator='google')
+            tamil_text = indic2en_model.translate_paragraph(text, 'en', 'ta')
+            tamil_text = tamil_text.replace("ஃ", ":\n")
+            tamil_text = tamil_text.replace("அம்சங்கள்:", "\nஅம்சங்கள்:")
+            tamil_text = tamil_text.replace("கதை:", "\nகதை:")
+            tamil_text = tamil_text.replace("குறிப்பில்லா வாக்கியம்:", "\nகுறிப்பில்லா வாக்கியம்:")
+            tamil_text = tamil_text.replace("சுருக்கம்:", "\nசுருக்கம்:")
+            tamil_text = tamil_text.replace("வார்த்தைகள்:", "\nவார்த்தைகள்:")
+            tamil_text = tamil_text.replace("சிறப்பம்சங்கள்:", "\nசிறப்பம்சங்கள்:")
+            tamil_text = tamil_text.replace("\"\"", "\n")
+            #tamil_text = tamil_text.replace(".", ".\n")
+            print(tamil_text)
+            #sleep(1)
+            #except:
+                #print("Error in translation.. skipping...")
+                #continue
+
+            if current_csv_file is None or len(all_translations) % 100 == 0:
+                current_csv_file = shard.replace(".txt", ".csv")
+                with open(current_csv_file, "a", newline='') as f:
+                    writer = csv.writer(f)
+                    writer.writerows(all_translations)
+                all_translations = []
+
+            all_translations.append([tamil_text])
+
+        if current_csv_file is not None:
+            with open(current_csv_file, "a", newline='') as f:
+                writer = csv.writer(f)
+                writer.writerows(all_translations)
+
+    # iterate the shards and translate all of them one by one
     data_dir = os.path.join(DATA_CACHE_DIR, "TinyStories_all_data")
-    shard_filenames = sorted(glob.glob(os.path.join(data_dir, "*.json")))
-
-    # process all the shards in a threadpool
-    with ThreadPoolExecutor(max_workers=8) as executor:
-        executor.map(process_shard, shard_filenames)
+    shard_filenames = sorted(glob.glob(os.path.join(data_dir, "*.txt")))
+    for shard in shard_filenames:
+        process_shard(shard)
 
     print("Done.")
 
@@ -118,7 +154,7 @@ class PretokDataset(torch.utils.data.IterableDataset):
         data_dir = os.path.join(DATA_CACHE_DIR, "TinyStories_all_data")
         shard_filenames = sorted(glob.glob(os.path.join(data_dir, "*.bin")))
         # train/test split. let's use only shard 0 for test split, rest train
-        shard_filenames = shard_filenames[1:] if self.split == "train" else shard_filenames[:1]
+        #shard_filenames = shard_filenames[1:] if self.split == "train" else shard_filenames[:1]
         while True:
             rng.shuffle(shard_filenames)
             for shard in shard_filenames:
@@ -145,7 +181,7 @@ class Task:
     def iter_batches(split, batch_size, max_seq_len, device, num_workers=0):
         ds = PretokDataset(split, max_seq_len)
         dl = torch.utils.data.DataLoader(
-            ds, batch_size=batch_size, pin_memory=True, num_workers=num_workers
+            ds, batch_size=batch_size, pin_memory=False, num_workers=num_workers
         )
         for x, y in dl:
             x = x.to(device, non_blocking=True)
