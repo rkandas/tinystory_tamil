@@ -22,8 +22,8 @@ class TinyLLaMATrainer:
         self.block_size = 1024
         self.batch_size = 2
         self.max_iters = 100000
-        self.eval_interval = 100
-        self.log_interval = 2
+        self.eval_interval = 1000
+        self.log_interval = 10
         self.start_index = 0
         self.grad_clip = 1.5
         self.out_dir = "out/training"
@@ -31,7 +31,7 @@ class TinyLLaMATrainer:
         self.weight_decay = 0.01
         self.accumulation_steps = 4
 
-        self.strategy = SingleDeviceStrategy(device="mps", accelerator="mps")
+        self.strategy = SingleDeviceStrategy(device="cuda:0", accelerator="cuda")
         self.fabric = L.Fabric(devices=1, precision="bf16-mixed", strategy=self.strategy)
         self.writer = SummaryWriter(log_dir='out/logs')
 
@@ -138,11 +138,12 @@ class TinyLLaMATrainer:
         buffer = ""
         for row in dataset['train']:  # Assuming you want to use the 'train' split
             sentence = row['sent_token'] + "\n"
-            buffer += sentence
             num_tokens = len(self.tokenizer.tokenize(buffer))
             if num_tokens >= context_size:
-                yield buffer[:context_size]
-                buffer = buffer[context_size:]
+                yield buffer
+                buffer = sentence
+            else:
+                buffer += sentence
 
         # Yield the remaining buffer if it's not empty
         if buffer:
@@ -172,9 +173,9 @@ class TinyLLaMATrainer:
             try:
                 example = next(self.dataset_iter)
                 #example = example.replace("ஃ ",":\n")
-                #print(example)
+                print(example)
                 encoded_example = self.tokenizer(example, truncation=True, max_length=self.block_size, padding="max_length", )
-                #print(encoded_example)
+                print(encoded_example)
                 #exit(0)
                 #if i>10:
                 #    exit()
@@ -281,9 +282,9 @@ class TinyLLaMATrainer:
 
 
 def init_device_and_fabric():
-    #device = "cuda" if torch.has_cuda else exit("No cuda detected. Aborting the training.")
-    device = "mps"
-    strategy = SingleDeviceStrategy(device="mps:0", accelerator="mps")
+    device = "cuda" if torch.has_cuda else exit("No cuda detected. Aborting the training.")
+    #device = "mps"
+    strategy = SingleDeviceStrategy(device="cuda:0", accelerator="cuda")
     fabric = L.Fabric(devices=1, precision="bf16-mixed", strategy=strategy)
     writer = SummaryWriter(log_dir='out/logs')
     fabric.seed_everything(1337 + fabric.global_rank)
