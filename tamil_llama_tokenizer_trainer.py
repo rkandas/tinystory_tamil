@@ -1,7 +1,9 @@
-#Step 1: Uncomment below and generate tamil.model
+# # #Step 1: Uncomment below and generate tamil.model
 # import sentencepiece as spm
 # user_def_symbols = ["<pad>","<s>","</s>","<mask>","\n","+","-","*","$","%","^","1","2","3","4","5","6","7","8","9","0","#","@",
 #                                 "&","=","~","<",">",":",";","'","(",")",".",","]
+# english_alphabets = ["a","b","c","d","e","f","g","h","i","j","k","l","m","n","o","p","q","r","s","t","u","v","w","x","y","z"]
+# english_capital_letters = ["A","B","C","D","E","F","G","H","I","J","K","L","M","N","O","P","Q","R","S","T","U","V","W","X","Y","Z"]
 # tamil_stop_words = [
 # "ஒரு",
 # "என்று",
@@ -245,19 +247,58 @@
 #     "தார்",
 #     "ப்ப",
 #     "ம்ப",
+#     "ந்த",
+#     "ண்ட",
+#     "த்த",
+#     "ன்ற",
+#     "ச்ச",
+#     "ன்ன",
+#     "ஞ்ச",
+#     "ற்ற",
+#     "ட்ட",
+#     "ங்க",
+#     "ல்ல",
+#     "ர்க",
+#     "ள்ள",
+#     "அவ",
+#     "இவ",
+#     "அத",
+#     "இத",
+#     "உல"
+#     "அழ",
+#     "அள",
+#     "அற",
+#     "அர",
+#     "அன",
+#     "அண",
+#     "அட",
+#     "மன",
+#     "மண",
+#     "மர",
+#     "மல",
+#     "மள",
+#     "இன",
+# ]
+
+# popular_words = [
+#     "தமிழ",
+#     "காதல",
 # ]
 
 # user_def_symbols.extend(tamil_stop_words)
 # user_def_symbols.extend(relationship_words)
 # user_def_symbols.extend(tamil_verbs)
 # user_def_symbols.extend(frequent_sub_words)
+# user_def_symbols.extend(popular_words)
+# user_def_symbols.extend(english_alphabets)
+# user_def_symbols.extend(english_capital_letters)
 
-# print(len(user_def_symbols))
-# print(user_def_symbols)
+# # # print(len(user_def_symbols))
+# # # print(user_def_symbols)
 
-# spm.SentencePieceTrainer.train(input="./data/tamil_wiki.csv", model_prefix='tamil',vocab_size=32000,user_defined_symbols=user_def_symbols,model_type="BPE")
+# spm.SentencePieceTrainer.train(input="./data/processed_content.csv", model_prefix='tamil',vocab_size=4000,user_defined_symbols=user_def_symbols,model_type="BPE")
 
 #Step 2: Generate fast tokenizer tokenizer.json
 from transformers import AutoTokenizer
-fast_tokenizer = AutoTokenizer.from_pretrained("./config_25m", use_fast=True)
-fast_tokenizer.save_pretrained("./config_25m")
+fast_tokenizer = AutoTokenizer.from_pretrained("./tamil_300m_clean", use_fast=True)
+fast_tokenizer.save_pretrained("./tamil_300m_clean")
