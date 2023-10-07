@@ -54,7 +54,8 @@ class DatasetLoader:
 
     def load_from_text(self, file_path: str) -> Iterator[str]:
         with open(file_path, 'r', encoding='utf-8') as f:
-            self.data_source = f.readlines()
+            for line in f:
+                yield line
         self.load_method = self.load_from_text
         self.load_args = (file_path,)
         self.data_iterator = iter(self.data_source)
@@ -109,11 +110,11 @@ class TinyLLaMATrainer:
         print(f"GPT Model size: {model_size/1000**2:.1f}M parameters")
 
     def setup_hyperparameters(self):
-        self.block_size = 64
-        self.batch_size = 2
-        self.max_iters = 1000000
+        self.block_size = 16
+        self.batch_size = 64
+        self.max_iters = 10000000
         self.eval_interval = 500
-        self.log_interval = 2
+        self.log_interval = 100
         self.grad_clip = 1.5
         self.out_dir = "out/training"
         self.learning_rate = 1e-4
@@ -124,7 +125,7 @@ class TinyLLaMATrainer:
         if new_llama_model:
             config = LlamaConfig.from_pretrained(self.model_path)
             config.use_cache = False
-            config.vocab_size = 32000
+            #config.vocab_size = 32000
             config.torch_dtype = torch.float16
             print(config)
             
@@ -218,8 +219,9 @@ if __name__ == "__main__":
         device = "cuda" if torch.cuda.is_available() else "cpu"
     else:
         device = "mps"
-    trainer = TinyLLaMATrainer(device, "llama-base",new_llama_model=True)
+    trainer = TinyLLaMATrainer(device, "llama-tamil-hyp",new_llama_model=True)
     dataset_loader = DatasetLoader(trainer.tokenizer, trainer.block_size)
     #data_iterator = dataset_loader.load_from_hf("AnanthZeke/tamil_sentences_master_unique",text_column_name="sent_token")
-    data_iterator = dataset_loader.load_from_csv("data/processed_content.csv",combine_rows_to_blocksize=True)
+    #data_iterator = dataset_loader.load_from_csv("data/processed_content.csv",combine_rows_to_blocksize=True)
+    data_iterator = dataset_loader.load_from_text("data/tamil_words.txt")
     trainer.train(data_iterator)
