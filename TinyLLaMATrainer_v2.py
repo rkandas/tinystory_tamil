@@ -110,11 +110,11 @@ class TinyLLaMATrainer:
         print(f"GPT Model size: {model_size/1000**2:.1f}M parameters")
 
     def setup_hyperparameters(self):
-        self.block_size = 64
-        self.batch_size = 16
-        self.max_iters = 10000000
-        self.eval_interval = 500
-        self.log_interval = 100
+        self.block_size = 1024
+        self.batch_size = 2
+        self.max_iters = 1000000
+        self.eval_interval = 1000
+        self.log_interval = 10
         self.grad_clip = 1.5
         self.out_dir = "out/training"
         self.learning_rate = 1e-4
@@ -219,9 +219,9 @@ if __name__ == "__main__":
         device = "cuda" if torch.cuda.is_available() else "cpu"
     else:
         device = "mps"
-    trainer = TinyLLaMATrainer(device, "tamil_word_125m",new_llama_model=False)
+    trainer = TinyLLaMATrainer(device, "llama-english-hyp",new_llama_model=True)
     dataset_loader = DatasetLoader(trainer.tokenizer, trainer.block_size)
     #data_iterator = dataset_loader.load_from_hf("AnanthZeke/tamil_sentences_master_unique",text_column_name="sent_token")
-    #data_iterator = dataset_loader.load_from_csv("data/processed_content.csv",combine_rows_to_blocksize=True)
-    data_iterator = dataset_loader.load_from_text("/mnt/d/Work/data/tamil_sentences.txt")
+    data_iterator = dataset_loader.load_from_csv("books.csv",combine_rows_to_blocksize=False)
+    #data_iterator = dataset_loader.load_from_text("./data/tamil_sentences.txt")
     trainer.train(data_iterator)
